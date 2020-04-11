@@ -1,0 +1,111 @@
+# -*- restclient -*-
+#
+
+################################################################################
+# Assignment/condition manager:
+
+# get lists
+GET http://localhost:8080/right-context-adapt/lists
+
+# for another experiment...
+GET http://localhost:8080/blahblah/lists
+
+# create lists: mis-formatted
+PUT http://localhost:8080/right-context-adapt/lists
+Content-Type: application/json
+
+[
+  {
+    "list_id": 1,
+    "condition": "tent-biasing",
+    "count": 11
+  },
+  {
+    "list_id": 2,
+    "condition": "dent-biasing",
+    "count": 10
+  }
+]
+
+# create lists (another experiment)
+PUT http://localhost:8080/blahblah/lists
+Content-Type: application/json
+
+[
+  {
+    "list_id": 1,
+    "condition": "nothign",
+    "count": 11
+  },
+  {
+    "list_id": 2,
+    "condition": "something",
+    "count": 10
+  }
+]
+
+#
+GET http://localhost:8080/blahblah/lists?condition=nothign
+
+# create lists (URL overrides json...)
+PUT http://localhost:8080/blahblah/lists
+Content-Type: application/json
+
+[
+  {
+    "experiment": "blahblahblah",
+    "list_id": 1,
+    "condition": "nothign",
+    "count": 13
+  }
+]
+
+#
+GET http://localhost:8080/blahblah/lists?condition=nothign
+
+# remove lists (should be nothing...)
+DELETE http://localhost:8080/blahblahblah/lists
+
+# remove lists
+DELETE http://localhost:8080/blahblah/lists
+
+################################################################################
+# session
+
+# list sessions for expt
+GET http://localhost:8080/right-context-adapt/session
+
+# with query
+GET http://localhost:8080/right-context-adapt/session?workerId=daaavvee
+
+# create new session
+POST http://localhost:8080/right-context-adapt/session
+Content-Type: application/json
+
+{
+  "assignmendId": 1233445,
+  "workerId": "dave"
+}
+
+# preview
+POST http://localhost:8080/right-context-adapt/session
+Content-Type: application/json
+
+{
+  "assignmendId": "ASSIGNMENT_ID_NOT_AVAILABLE"
+}
+
+# update status
+POST http://localhost:8080/right-context-adapt/session/381d64a3-4bb6-4c45-9d5a-1b520504023b/status
+Content-Type: text/plain
+
+assigned
+
+
+################################################################################
+# get results
+
+GET http://localhost:8080/results/?metadata.payload=incremental&metadata.workerId=dave3
+
+#
+GET http://localhost:8080/results/
