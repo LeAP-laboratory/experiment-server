@@ -1,0 +1,84 @@
+#+TITLE:Experiment server: right context recalibration
+
+* Configuration
+
+Configuration information is pulled from ~.env~ file.  This is not under version
+control, but the ~.env.example~ file shows the format.
+
+* Assignment targets
+
+The number of assignments to put in each condition is read from
+~assignments.json~, which has a format like
+
+#+begin_src 
+[
+  {
+    "list_id": 1,
+    "condition": "tent-biasing",
+    "count": 10
+  },
+  {
+    "list_id": 2,
+    "condition": "dent-biasing",
+    "count": 5
+  }
+]
+#+end_src
+
+~count~ gives the desired number of assignments for this list, and the contents
+of ~condition~ will be sent to the client on ~GET /condition~.
+
+* Deploying
+
+Use ~docker-compose~.  Make sure the docker daemon is running on your system
+first (~$ systemctl start docker~).
+
+** Development
+
+A separate docker-compose config is provided for local development:
+
+#+begin_src 
+$ docker-compose -f docker-compose.devel.yml up
+#+end_src
+
+This will create a container for the database if needed, and listen on
+port 8080.  The local app directory is mounted in the countainer (to
+~/home/node/app~) and ~nodemon~ listens for changes in the source.  This differs
+from the production docker compose config which copies the app source and static
+assets into the container when it's built.
+
+Make sure that no ~node_modules~ directory is present since it will mask the
+volume that's created by docker-compose.
+
+** Production/staging
+
+*** Development on server
+
+Live development can be done on the server by combining the production and
+development docker compose configs:
+
+#+begin_src 
+$ docker-compose -f docker-compose.yml -f docker-compose.devel.yml up
+#+end_src
+
+*** SSL/certbot/LetsEncrypt
+
+The certificates necessary for SSL are written into the ~certbot-etc~ and
+~certbot-var~ volumes by certbot.  This is accomplished using a separate docker compose
+file, which goes on top of the main one like so:
+
+#+begin_src 
+$ docker-compose -f docker-compose.yml -f docker-compose.certbot.yml up certbot
+#+end_src
+
+On its own, this will (re-)create the necessary services (webserver) and run
+certbot.  This needs to be done every time the certificate needs to be renewed.
+
+Once the certificates are in place, the diffie helman parameter needs to be
+generated, like
+
+#+begin_src 
+$ mkdir dhparam
+$ sudo openssl dhparam -out "$PWD/dhparam/dhparam-2048.pem" 2048
+#+end_src
+

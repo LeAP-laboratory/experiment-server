@@ -1,0 +1,7 @@
+/.env
+/node_modules/
+combined.log
+error.log
+*-workerids.csv
+/data/*.json
+/data/*.csv
