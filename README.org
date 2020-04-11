@@ -1,32 +1,411 @@
 #+TITLE:Experiment server: right context recalibration
 
+This is a node.js app that coordinates MTurk experiment using a
+[lab.js](https://lab.js.org) front-end.
+
 * Configuration
 
-Configuration information is pulled from ~.env~ file.  This is not under version
-control, but the ~.env.example~ file shows the format.
+  Configuration information is pulled from ~.env~ file.  This is not under
+  version control, but the ~.env.example~ file shows the format.
 
-* Assignment targets
+* Experiments
+  
+  Static files for each experiment should be placed in a directory with the name
+  of the experiment inside ~web-root~.  Replace spaces, parens, etc. with ~-~,
+  so if your experiment is called "Selective adaptation", you should put the
+  lab.js export in ~web-root/selective-adaptation/~.
 
-The number of assignments to put in each condition is read from
-~assignments.json~, which has a format like
+* Components
 
-#+begin_src 
-[
-  {
-    "list_id": 1,
-    "condition": "tent-biasing",
-    "count": 10
-  },
-  {
-    "list_id": 2,
-    "condition": "dent-biasing",
-    "count": 5
-  }
-]
-#+end_src
+  See [[docker-compose.yml]] and [[docker-compose.devel.yml]] for the components of the
+  app.
+  
+** nginx webserver
 
-~count~ gives the desired number of assignments for this list, and the contents
-of ~condition~ will be sent to the client on ~GET /condition~.
+   The ~webserver~ service is an nginx webserver.  This has two functions.
+   First, it serves static files for the experiments from ~web-root~; any
+   request that doesn't correspond to a file or subdirectory with ~index.html~
+   in ~web-root~ gets passed to the node.js app.  
+
+   Second, it handles the https configuration and sets response headers
+   correctly to ensure a secure connection.
+
+** node.js app
+
+   This handles participant sessions in the experiments, including assigning
+   subjects to conditions if needed and collecting data.
+
+   It also provides an admin interface to retrieve data, manage condition
+   lists, and monitor user sessions.
+
+** mongo db
+   
+   This records information on each participant session, generated data, and
+   experimental lists.
+
+* Interaction
+
+** experimental lists: ~/:experiment/lists/~
+
+   The lists of conditions and number of assignments to put in each condition is
+   read from the ~lists~ database, which stores documents like this:
+
+   #+begin_src json
+     [
+       {
+         "list_id": 1,
+         "experiment": "a-nice-experiment"
+         "condition": "good-condition",
+         "count": 10
+       },
+       {
+         "list_id": 2,
+         "experiment": "a-nice-experiment"
+         "condition": "okay-condition",
+         "count": 5
+       }
+     ]
+   #+end_src
+
+   ~count~ gives the desired number of assignments for this list.  Anything
+   stored under ~condition~ will be stored on the session returned to the
+   client.
+
+*** Update lists and/or target assignment counts with PUT
+    #+begin_src restclient
+      PUT http://localhost:8080/blahblah/lists
+      Content-Type: application/json
+
+      [
+        {
+          "list_id": 1,
+          "condition": "nothign",
+          "count": 11
+        },
+        {
+          "list_id": 1,
+          "condition": "nothing",
+          "count": 11
+        },
+        {
+          "list_id": 2,
+          "condition": "something",
+          "count": 10
+        }
+      ]
+    #+end_src
+
+    #+RESULTS:
+    #+BEGIN_SRC js
+    [
+      {
+        "n": 1,
+        "nModified": 0,
+        "upserted": [
+          {
+            "index": 0,
+            "_id": "5e9139a2430bf863c0f2cc5b"
+          }
+        ],
+        "ok": 1
+      },
+      {
+        "n": 1,
+        "nModified": 0,
+        "ok": 1
+      },
+      {
+        "n": 1,
+        "nModified": 0,
+        "ok": 1
+      }
+    ]
+    // PUT http://localhost:8080/blahblah/lists
+    // HTTP/1.1 200 OK
+    // Server: nginx/1.17.8
+    // Date: Sat, 11 Apr 2020 03:29:38 GMT
+    // Content-Type: application/json; charset=utf-8
+    // Content-Length: 146
+    // Connection: keep-alive
+    // X-Powered-By: Express
+    // ETag: W/"92-7tRz3248ZOxNZpD0GLm+PwZmdJE"
+    // Request duration: 0.018596s
+    #+END_SRC
+
+*** GET lists for experiment
+    #+begin_src restclient
+      GET http://localhost:8080/blahblah/lists
+    #+end_src
+
+    #+RESULTS:
+    #+BEGIN_SRC js
+    [
+      {
+        "_id": "5e913985430bf863c0f2cc47",
+        "condition": "nothing",
+        "experiment": "blahblah",
+        "list_id": 1,
+        "count": 11
+      },
+      {
+        "_id": "5e913985430bf863c0f2cc48",
+        "condition": "something",
+        "experiment": "blahblah",
+        "list_id": 2,
+        "count": 10
+      },
+      {
+        "_id": "5e9139a2430bf863c0f2cc5b",
+        "condition": "nothign",
+        "experiment": "blahblah",
+        "list_id": 1,
+        "count": 11
+      }
+    ]
+    // GET http://localhost:8080/blahblah/lists
+    // HTTP/1.1 200 OK
+    // Server: nginx/1.17.8
+    // Date: Sat, 11 Apr 2020 03:29:44 GMT
+    // Content-Type: application/json; charset=utf-8
+    // Content-Length: 315
+    // Connection: keep-alive
+    // X-Powered-By: Express
+    // ETag: W/"13b-WqYJmVZZkykQ5bILQze/k58N3YQ"
+    // Request duration: 0.014982s
+    #+END_SRC
+
+*** GET lists with additional filter
+    #+begin_src restclient
+      GET http://localhost:8080/blahblah/lists?condition=nothign
+    #+end_src
+    
+    #+RESULTS:
+    #+BEGIN_SRC js
+    [
+      {
+        "_id": "5e9139a2430bf863c0f2cc5b",
+        "condition": "nothign",
+        "experiment": "blahblah",
+        "list_id": 1,
+        "count": 11
+      }
+    ]
+    // GET http://localhost:8080/blahblah/lists?condition=nothign
+    // HTTP/1.1 200 OK
+    // Server: nginx/1.17.8
+    // Date: Sat, 11 Apr 2020 03:29:48 GMT
+    // Content-Type: application/json; charset=utf-8
+    // Content-Length: 105
+    // Connection: keep-alive
+    // X-Powered-By: Express
+    // ETag: W/"69-K8U2Z+Zoc8en7GNbWYCcaX24ND0"
+    // Request duration: 0.013597s
+    #+END_SRC
+
+*** DELETE lists
+    Only exposed in development mode (when ~NODE_ENV != "production"~).
+
+    #+begin_src restclient
+      DELETE http://localhost:8080/blahblah/lists?condition=nothign
+    #+end_src
+
+    #+RESULTS:
+    #+BEGIN_SRC js
+    {
+      "result": {
+        "n": 1,
+        "ok": 1
+      },
+      "connection": {
+        "id": 2,
+        "host": "db",
+        "port": 27017
+      },
+      "deletedCount": 1,
+      "n": 1,
+      "ok": 1
+    }
+    // DELETE http://localhost:8080/blahblah/lists?condition=nothign
+    // HTTP/1.1 200 OK
+    // Server: nginx/1.17.8
+    // Date: Sat, 11 Apr 2020 03:29:51 GMT
+    // Content-Type: application/json; charset=utf-8
+    // Content-Length: 102
+    // Connection: keep-alive
+    // X-Powered-By: Express
+    // ETag: W/"66-J7xhneNWbQSr5nfbW0l7GMeGoh4"
+    // Request duration: 0.012958s
+    #+END_SRC
+
+** sessions: ~/:experiment/session/~
+
+*** Open new session
+    
+    We use PUSH to request a new session.  If a matching session is not found in
+    the database, a new session is created.  The criterion for matching is
+    having the same workerId and experiment.  
+
+    The body of the PUSH request has the metadata about the session to store
+    (workerId is mandatory, others are optional).
+
+    #+begin_src restclient
+      POST http://localhost:8080/blahblah/session
+      Content-Type: application/json
+
+      {
+        "assignmendId": 1233445,
+        "workerId": "dave",
+        "hello": "world"
+      }
+    #+end_src
+
+    #+RESULTS:
+    #+BEGIN_SRC js
+    {
+      "assignmendId": 1233445,
+      "workerId": "dave",
+      "hello": "world",
+      "experiment": "blahblah",
+      "session_id": "680c34d8-a2b4-4f53-be82-fb395a9ef884",
+      "condition": "nothing",
+      "status": "assigned",
+      "_id": "5e913b0760a409003c4d364d"
+    }
+    // POST http://localhost:8080/blahblah/session
+    // HTTP/1.1 200 OK
+    // Server: nginx/1.17.8
+    // Date: Sat, 11 Apr 2020 03:35:35 GMT
+    // Content-Type: application/json; charset=utf-8
+    // Content-Length: 209
+    // Connection: keep-alive
+    // X-Powered-By: Express
+    // ETag: W/"d1-/JAeWr1EC6217fT2Z8RscWZc7Gg"
+    // Request duration: 0.060078s
+    #+END_SRC
+
+    The ~session_id~ is needed for future requests (to get information on a
+    specific session and to update the status of a session)
+    
+    During preview, no ~workerId~ is assigned, but ~assignmentId~ is set to
+    ~ASSIGNMENT_ID_NOT_AVAILABLE~.  In this case, no record is created and
+    ~condition~ is set to ~preview~:
+
+    #+begin_src restclient
+      POST http://localhost:8080/blahblah/session
+      Content-Type: application/json
+
+      {
+        "assignmentId": "ASSIGNMENT_ID_NOT_AVAILABLE"
+      }
+    #+end_src
+
+    #+RESULTS:
+    #+BEGIN_SRC js
+    {
+      "assignmentId": "ASSIGNMENT_ID_NOT_AVAILABLE",
+      "condition": "preview"
+    }
+    // POST http://localhost:8080/blahblah/session
+    // HTTP/1.1 200 OK
+    // Server: nginx/1.17.8
+    // Date: Sat, 11 Apr 2020 03:38:05 GMT
+    // Content-Type: application/json; charset=utf-8
+    // Content-Length: 68
+    // Connection: keep-alive
+    // X-Powered-By: Express
+    // ETag: W/"44-dGvXam5b8niOp+AfWplrKDhJZmI"
+    // Request duration: 0.018471s
+    #+END_SRC
+
+*** POST updates to session status
+    This is used by the client to update the server on progress of the
+    experiment, or in case the session is abandoned by closing the window.
+
+    #+begin_src restclient
+      POST http://localhost:8080/blahblah/session/680c34d8-a2b4-4f53-be82-fb395a9ef884/status
+      Content-Type: text/plain
+
+      okay
+    #+end_src
+
+    #+RESULTS:
+    #+BEGIN_SRC js
+    // POST http://localhost:8080/blahblah/session/680c34d8-a2b4-4f53-be82-fb395a9ef884/status
+    // HTTP/1.1 200 OK
+    // Server: nginx/1.17.8
+    // Date: Sat, 11 Apr 2020 03:43:20 GMT
+    // Transfer-Encoding: chunked
+    // Connection: keep-alive
+    // X-Powered-By: Express
+    // Request duration: 0.014902s
+    #+END_SRC
+    
+*** GET a listing of all sessions for an experiment
+    #+begin_src restclient
+      GET http://localhost:8080/blahblah/session/
+    #+end_src
+
+    #+RESULTS:
+    #+BEGIN_SRC js
+    [
+      {
+        "_id": "5e913b0760a409003c4d364d",
+        "assignmendId": 1233445,
+        "workerId": "dave",
+        "hello": "world",
+        "experiment": "blahblah",
+        "session_id": "680c34d8-a2b4-4f53-be82-fb395a9ef884",
+        "condition": "nothing",
+        "status": "okay"
+      }
+    ]
+    // GET http://localhost:8080/blahblah/session/
+    // HTTP/1.1 200 OK
+    // Server: nginx/1.17.8
+    // Date: Sat, 11 Apr 2020 03:44:03 GMT
+    // Content-Type: application/json; charset=utf-8
+    // Content-Length: 207
+    // Connection: keep-alive
+    // X-Powered-By: Express
+    // ETag: W/"cf-4177wYXZFBK+hFQXDTT9ThCaRGs"
+    // Request duration: 0.012216s
+    #+END_SRC
+
+*** GET information on an existing session
+
+    (This uses the ID returned in the POST call above)
+
+    #+begin_src restclient
+      GET http://localhost:8080/blahblah/session/680c34d8-a2b4-4f53-be82-fb395a9ef884/
+    #+end_src
+
+    #+RESULTS:
+    #+BEGIN_SRC js
+    {
+      "_id": "5e913b0760a409003c4d364d",
+      "assignmendId": 1233445,
+      "workerId": "dave",
+      "hello": "world",
+      "experiment": "blahblah",
+      "session_id": "680c34d8-a2b4-4f53-be82-fb395a9ef884",
+      "condition": "nothing",
+      "status": "okay"
+    }
+    // GET http://localhost:8080/blahblah/session/680c34d8-a2b4-4f53-be82-fb395a9ef884/
+    // HTTP/1.1 200 OK
+    // Server: nginx/1.17.8
+    // Date: Sat, 11 Apr 2020 03:44:13 GMT
+    // Content-Type: application/json; charset=utf-8
+    // Content-Length: 205
+    // Connection: keep-alive
+    // X-Powered-By: Express
+    // ETag: W/"cd-0SVHlJg+WXq4PWpCHjo1xsMoB2s"
+    // Request duration: 0.014265s
+    #+END_SRC
+
+** data: ~/:experiment/data~
+
+* Experimental lists (conditions and assignment targets)
 
 * Deploying
 
