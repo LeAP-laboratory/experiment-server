@@ -54,7 +54,7 @@ if (process.env.NODE_ENV !== 'production') {
     try {
       const query = {
         experiment: req.experiment,
-        ...req.body
+        ...req.query
       };
       logger.warn('Deleting lists from db matching: %o', query);
       const db = await DB;
