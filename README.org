@@ -54,13 +54,13 @@ This is a node.js app that coordinates MTurk experiment using a
      [
        {
          "list_id": 1,
-         "experiment": "a-nice-experiment"
+         "experiment": "a-nice-experiment",
          "condition": "good-condition",
          "count": 10
        },
        {
          "list_id": 2,
-         "experiment": "a-nice-experiment"
+         "experiment": "a-nice-experiment",
          "condition": "okay-condition",
          "count": 5
        }
