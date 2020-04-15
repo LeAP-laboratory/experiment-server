@@ -5,3 +5,4 @@ error.log
 *-workerids.csv
 /data/*.json
 /data/*.csv
+/web-root/*
