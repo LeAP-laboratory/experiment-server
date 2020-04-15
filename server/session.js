@@ -42,7 +42,7 @@ api.post(
 
       if (old_sessions.length === 0) {
         // no existing session for worker, create a new session
-        const list = await list_balancer({ experiment: session.experiment });
+        const list = await list_balancer({ experiment: session.experiment }) || {};
         session.condition = list.condition;
         session.status = 'assigned';
         await col.insertOne(session);

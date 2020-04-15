@@ -48,22 +48,30 @@ async function list_balancer(query={}) {
     return x;
   });
 
-  // counts of existing assignments
-  const counts = await db_counts(query);
+  console.dir(targets);
 
-  // write current count from db into targets
-  await counts.forEach(db_obj => {
-    const target = _.find(targets, ['condition', db_obj._id]);
-    if (target !== undefined) {
-      target.count = db_obj.count;
-    }
-  });
+  if (targets.length == 0) {
+    logger.warn('[lists] No lists found for %o.', query);
+    return undefined;
+  } else {
 
-  logger.verbose("List balancer serving conditions: %o.", targets);
+    // counts of existing assignments
+    const counts = await db_counts(query);
+    
+    // write current count from db into targets
+    await counts.forEach(db_obj => {
+      const target = _.find(targets, ['condition', db_obj._id]);
+      if (target !== undefined) {
+        target.count = db_obj.count;
+      }
+    });
 
-  const cond = _.maxBy(targets, t => t.target_count - t.count);
-  logger.info("List balancer selected %o", cond);
-  return cond;
+    logger.verbose("[lists] List balancer serving conditions: %o.", targets);
+
+    const cond = _.maxBy(targets, t => t.target_count - t.count);
+    logger.info("[lists] List balancer selected %o", cond);
+    return cond;
+  }
 }
 
 
