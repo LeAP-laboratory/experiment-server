@@ -323,7 +323,8 @@ This is a node.js app that coordinates MTurk experiment using a
 
 *** POST updates to session status
     This is used by the client to update the server on progress of the
-    experiment, or in case the session is abandoned by closing the window.
+    experiment, or in case the session is abandoned by closing the window.  The
+    body of the request is set as the new status (parsed as plain text).
 
     #+begin_src restclient
       POST http://localhost:8080/a-nice-experiment/session/680c34d8-a2b4-4f53-be82-fb395a9ef884/status
@@ -409,7 +410,15 @@ This is a node.js app that coordinates MTurk experiment using a
 
 ** data: ~/:experiment/data~
 
-* Experimental lists (conditions and assignment targets)
+*** POST recorded data
+
+    The client should send recorded data to the serer using a POST request to
+    the experiments ~data~ endpoint:
+
+#+begin_src restclient
+POST 
+#+end_src
+
 
 * Deploying
 
