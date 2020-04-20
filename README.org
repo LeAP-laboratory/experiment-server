@@ -3,17 +3,55 @@
 This is a node.js app that coordinates MTurk experiment using a
 [lab.js](https://lab.js.org) front-end.
 
-* Configuration
-
-  Configuration information is pulled from ~.env~ file.  This is not under
-  version control, but the ~.env.example~ file shows the format.
-
-* Experiments
+* Setting up an experiment
   
   Static files for each experiment should be placed in a directory with the name
   of the experiment inside ~web-root~.  Replace spaces, parens, etc. with ~-~,
   so if your experiment is called "Selective adaptation", you should put the
   lab.js export in ~web-root/selective-adaptation/~.
+
+** Sandbox
+
+   Before deploying the final version of your experiment, do a "test run" in the
+   mechanical turk sandbox.  When you do this, make a copy of your experiment
+   with SANDBOX prepended to the name: ~web-root/SANDBOX-selective-adaptation/~.
+
+** Setting experimental lists
+
+   To set up the lists (conditions, etc.) for your experiment, you need to make
+   a PUT request to https://experiments.leap-lab.org/name-of-experiment/lists,
+   with the JSON-encoded array of lists in the body, like so:
+   
+   #+begin_src restclient
+     PUT https://experiments.leap-lab.org/name-of-experiment/lists Content-Type:
+     application/json
+
+     [
+       {
+         "list_id": 1,
+         "condition": "condition-1",
+       },
+       {
+         "list_id": 2,
+         "condition": "condition-2",
+       }
+     ]
+   #+end_src
+
+   There is, alas, currently no convenient way of doing this.  Curl or
+   emacs-restclient (like above) is your friend.
+   
+   If you want something other than an equal number of subjects assigned to each
+   list, you can add a ~count~ field to each element.  The list balancer will
+   assign subjects to the list with the largest difference between the existing
+   (non-abandoned) sessions in that list and the ~count~.  The default value of
+   ~count~ is zero, which means that the list balancer by default will assign
+   each new subject to the list with the fewest subjects working/completed.
+
+* Configuration
+
+  Configuration information is pulled from ~.env~ file.  This is not under
+  version control, but the ~.env.example~ file shows the format.
 
 * Components
 
