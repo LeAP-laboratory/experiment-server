@@ -33,6 +33,7 @@ api.put('/', async (req, res, next) => {
     const results = await Promise.all(
       lists.map(async list => {
         let {count, ...list_body} = list;
+        count = count || 0;
         list_body.experiment = experiment;
         let result = await col.updateOne(
           list_body,
