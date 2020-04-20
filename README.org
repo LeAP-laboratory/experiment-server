@@ -40,13 +40,27 @@ This is a node.js app that coordinates MTurk experiment using a
 
    There is, alas, currently no convenient way of doing this.  Curl or
    emacs-restclient (like above) is your friend.
-   
-   If you want something other than an equal number of subjects assigned to each
-   list, you can add a ~count~ field to each element.  The list balancer will
-   assign subjects to the list with the largest difference between the existing
-   (non-abandoned) sessions in that list and the ~count~.  The default value of
-   ~count~ is zero, which means that the list balancer by default will assign
-   each new subject to the list with the fewest subjects working/completed.
+
+*** Conditions
+    The ~condition~ field can contain any valid JSON (number, string, array, or
+    object/dict).  It is available on the Lab.js front-end as
+    ~this.parameters.session.condition~.  You could use it to set basic
+    conditions (via a string/number), block order (via an array of
+    strings/objects), or some more complicated combination of different values
+    in a crossed design (via an object or array of objects).
+
+*** Assignment count   
+    If you want something other than an equal number of subjects assigned to each
+    list, you can add a ~count~ field to each element.  The list balancer will
+    assign subjects to the list with the largest difference between the existing
+    (non-abandoned) sessions in that list and the ~count~.  The default value of
+    ~count~ is zero, which means that the list balancer by default will assign
+    each new subject to the list with the fewest subjects working/completed.
+
+    This is useful mainly if you need to re-balance lists after analyzing the
+    data and dropping some subjects (by pre-defined exclusion criteria of
+    course).  Or if you have a strange design where you want many more subjects
+    in some conditions than others.
 
 * Configuration
 
