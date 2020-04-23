@@ -1,0 +1,321 @@
+#+TITLE:Experiment server
+
+* TODO Implement back end
+  What does this need to do?
+
+** DONE Receive data via transmit plugin 
+   (which POSTs JSON).  I have this set up to store things in a mongo database.
+
+** TODO Make data available in a convenient format
+   Probably CSV.  Use ~mongoexport~ for this?  Okay direct CSV export won't work
+   on account of the nested JSON, but can always dump the JSON and parse in R or
+   something.
+
+   Another alternative would be to flatten them on the backend before they're
+   stored in the database...or write a thing in the backend to retrieve all of
+   them and flatten them then and export to CSV
+
+   should have a separate script for this, just like the conditions
+
+   so the CSV export is added to the mturk output.  
+
+*** DONE add a ~results~ endpoint for the server
+    which will return all the records that it has, just concatenate all the
+    records together.
+
+*** TODO MAYBE re-assemble from incremental results on server side?
+   
+** TODO auto-assign qualification after data is submitted
+   
+** DONE manage sessions
+
+   Opted just for assigned/started/abandoned/submitted.
+    
+   Relevant states are:
+   - preview
+   - accepted but not started - (request with assignmentId)
+   - started - consented and done headphone check
+   - abandoned after started - window closed before results sent back
+   - finished
+
+*** DONE Install handlers on the front end.
+    uses ~window.navigator.sendBeacon~ to send an update, and a global variable
+    to keep track of the last status.
+
+*** DONE backend
+    Rule out anyone unless they haven't started yet (status is "assigned")
+
+    What's most important is to not allow repeat takers.  Can this piggy-back on
+    the assignments database?  Currently those entries have structure
+
+    #+begin_src js2
+      assignment = {
+        assigned: {
+          workerId: "id",
+          hitId: "hitid",
+          ...
+        },
+        condition: list.condition
+      };
+    #+end_src
+   
+    And queries are run against the whole ~assigned~ field...
+
+    Could add a ~progress~ field which keeps track of the last component
+    completed?  Or started?  That sounds like a pain actually since you'd have to
+    check every time...
+
+    Okay this is all a bit orthogonal to the problem of preventing re-takes.
+    Just add a check in the conditions logic!  And return a "repeat" condition
+    and check that.
+
+   
+*** DONE screen out repeats based on existing record for same worker
+    
+*** DONE update status and check for non-started HIT
+    If ~status == "assigned"~ can still start.
+   
+*** DONE update status for submitted/abandoned as well
+    ...and check in list balancer
+
+** DONE assign conditions from back end
+   Alternative is to just do it via query parameters on the URL that you specify
+   in the HIT.  But...I have code to do the list balancing already so...
+
+   Current strategy is to populate a mongodb collection with assignments at
+   start up and assign them one at a time.
+
+   I think the long-term plan is to have separate scripts to run the server and
+   to load a list of assignments into the queue or balance the lists.
+
+   so...what else is there to do besides just write that up?
+
+   I'm now not so sure that storing individual assignments in the queue is the
+   best thing to do.  because what I really want is to just have the lists be
+   balanced, I don't care how many we have.  So what we need to do is just keep
+   a count of the conditions that have been assigned so far and boost the lowest
+   (which is exactly what I was doing before...)
+
+   What's important to track is the status of the individual assignments.  then
+   based on that, determine which condition to provide for the next assignment.
+
+   Based on the existing implementation from the MTAdapt experiment, the flow is
+   like this:
+
+   1. client loads page, which requests /condition.
+   2. server looks for existing record matching some/all of the query
+   3. if record exists and status is "bad", return an error
+   4. if record exists and status is "okay" (hasn't started expt yet), return
+      condition JSON
+   5. else, get new condition, store assignment in the database, and return JSON
+
+   To get a new condition
+
+   1. count the number of subjects assigned to each condition
+   2. compare to target counts, and find the one with the biggest deficit
+
+   Conditions each have an ~list_id~ and a ~condition~ struct.
+   
+*** What are the design constraints here?
+**** Persistent assignment queue
+     Server might need to restart (hotfix or crash) and we don't want this to
+     clear out the list of assignments.
+**** Repeat-ability (idempotent?)
+     Return the same condition to the same assignmentId.
+**** Handle preview
+     Certain assignments need to be special case
+**** Graceful failure
+     If there are no assignments in the queue, do something sensible.  (Maybe
+     better to handle this on the client side actually..., although then you
+     need to have a record still...
+     
+*** DONE factor out "migration" script from server
+    This might not be super trivial since this will be running in a node
+    container, but then again you can always shell into the running container
+    right?
+*** handle empty queue
+    no longer an issue with better design.
+*** DONE list balancer that returns assignment based on target and actual counts
+*** DONE interface for list balancer 
+    Easiest would be to add a config file.  But the drawback there is that it
+    might be hard to handle that remotely (e.g., have to ssh into the server and
+    edit the file, or use git or something).  Easy for me but not for an RA (and
+    dangerous).
+
+    Another option would be to use some kind of REST type API.  That's what I
+    have now: it receives targets counts in JSON format. and updates the list
+    balancer.  The issue here is that this isn't persistent.  Then again, you
+    could just store that information in another database...
+
+    What's the *minimum necessary* to get this working?  Read from a JSON file.
+    Which is what I was doing before.
+*** DONE check for existing assignment
+    that's already done, as long as the ~assigned~ field matches.
+*** TODO (maybe) handle session status on client and backend
+    Maybe.  This seems probably unnecessary.
+** DONE support multiple experiments
+*** DONE refactor list-balancer
+    Need to have a way to have separate balancers for each experiment, and load
+    counts from some third location (db?).
+
+    Right now it just creates a single instance of the list balancer when it
+    starts up.  (essentially cacheing the target counts in memory).  this won't
+    work so well with multiple experiments.  You'd either have to 
+
+    1. lazily create a list balancer when a condition is requested for an
+       experiment that doesn't exist yet, or
+    2. forget about cacheing and just pull assignment records and the target
+       counts out of the db on every request (which is probably fine).
+
+    I think 1. is closest to the current implementation but 2. is probably a
+    better solution overall.  It just needs
+    
+    Maybe store a document in the DB with the conditions and targets for each
+    experiment/batch, and then add that as a parameter...
+
+    That approach is what I ended up with: 
+    1. there's an experiment parameter added to every API call,
+    2. an ~experiment~ field on every stored assignment, and
+    3. an ~experiment~ field on the saved lists in the db.
+    4. the list balancer just calls into the ~assignments~ DB to get the counts
+       by condition, and teh ~lists~ DB to get the targets, and does the
+       comparison on the fly.
+
+**** DONE read assignment targets from a db
+**** DONE generate count-to-go on the fly
+     either via Mongo directly or via two steps in js (read counts, join, and
+     sort)
+
+     I went with the two-step approach since it's closest to what I had before.
+**** DONE filter by experiment
+     done based on the route parameter
+     
+*** DONE what client changes are necessary?
+    None, as long as you're using relative paths for everything, and the static
+    files are being served from ~http://blahblah.blah/:experiment/stuff.html~.
+
+*** DONE add ~/:experiment/~ to routes
+
+    In order to inherit the experiment param, the child routers need to be
+    defined with ~mergeParams: true~ (like the following example):
+
+    #+begin_src js
+      // need to set mergeParams to inherit parameters
+      const test = express.Router({
+        mergeParams: true
+      });
+
+      test.get('/', (req, res, next) => {
+        res.send(req.params);
+      });
+
+      app.use('/test/:dummy', test);
+
+      app.get('/test2/:dummy', (req, res, next) => {
+        res.send(req.params);
+      });
+    #+end_src
+
+    *Or* directly inject the experiment into the request object by intercepting
+    it with a special handler first: 
+
+    #+begin_src js
+      app.use('/:dummy/*', (req, res, next) => {
+        req.dummy = req.params.dummy;
+        next();
+      });
+
+      const test = express.Router();
+      test.get('/', (req, res, next) => {
+        res.send(req.dummy);
+      });
+
+      app.use('/:dummy/test', test);
+
+      const test2 = express.Router();
+      test2.get('/', (req, res, next) => {
+        res.send(`${req.dummy} too!`);
+      });
+      app.use('/:dummy/test2', test2);
+
+    #+end_src
+
+    This may have the advantage of allowing the other routes to "just work"
+    without having to have special handling/parameters.
+
+    I opted for the second option here, with an extra ~Router()~ to handle the
+    other routes.
+    
+** DONE refactor back-end to use a single session endpoint
+   replaces condition and status.  not every experiment will have conditions,
+   but every experiment needs to manage sessions.  and the condition is stored
+   as part of the session.
+
+   this is a little complicated by the fact that requests to the
+   condition/status endpoint can't be a single flat document because they have
+   to be able to look up the session.  but maybe the request can have a
+   ~session~ field and ... something else (like ~status: ...~).
+
+   I think the main advantage is that the session doesn't need to match exactly
+   to do the lookup...
+   
+   right now here's how we interact with the assignments database:
+
+   1. when requesting a condition (~GET /condition~)
+      1. first look up based on ~assigned.workerId~.  if something is found,
+         then we return the stored ~condition~ field.
+      2. if not found, then create a new assignment where we put the query
+         params into ~assigned~, and request a new condition from the list
+         balancer.
+   2. for ~POST /status~ the payload comes as a single JSON.  
+
+   but we could just as easily put the status in the body and the session
+   identifiers in the query too.  but that seems a little hacky
+
+   maybe what we should do is have a session ID that is created on the server
+   and sent back.  so you ~POST~ the session info as JSON and then get an ID
+   back.  then when you want to update it you ~PUT~ (?).  well the PUT is not so
+   good because ~sendBeacon~ only deals in ~POST~ so that's what update status
+   is going to look like.  Here's my currently thinking for how this should
+   work:
+
+   1. ~POST /sessions~ to create a new session (returns struct with ID,
+      condition, etc.)
+   2. ~GET /sessions~ to get a list of sessions
+   3. ~GET /sessions/:id~ to return stored info
+   4. ~POST /sessions/:id/status~ to update status
+
+   Then the client will request a session first, store that, and use that to
+   set up the status updater.
+
+* Deploying
+** DONE containerize application
+   Might need to re-arrange some of the locations for things (e.g., have a volume
+   that has all the data files in it on the local filesystem).
+*** components
+**** ssl/letsencrypt
+**** mongodb
+**** node app
+** TODO refactor containers for multiple experiments
+   Make sure the static files are served by nginx.  or not!  node can handle
+   that, too.  well yes but in production we're copying the app into the
+   container so that's not ideal since you'd have to recreate the container
+   every time you add or remove an experiment.
+
+   I guess you COULD just make static a bind volume with the filesystem.
+
+   I decided to make the ~web-root/~ directory serve all static files.
+** TODO checklist for front-end tweaks required to support backend
+   This is mostly handled by the Session class which extends Lab.js transmit
+   plugin.
+*** Update status
+    Include dummy components at start and after transmission, which have ~title:
+    "status:(started|submitted)"~.
+
+    unload is handled by Session.
+    
+*** Transmit plug-in with correct path (~data/~)
+    Also handled by Session.
+*** Request session
+    handled by Session
+
