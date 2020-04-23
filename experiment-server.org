@@ -296,7 +296,7 @@
 **** ssl/letsencrypt
 **** mongodb
 **** node app
-** TODO refactor containers for multiple experiments
+** DONE refactor containers for multiple experiments
    Make sure the static files are served by nginx.  or not!  node can handle
    that, too.  well yes but in production we're copying the app into the
    container so that's not ideal since you'd have to recreate the container
@@ -305,6 +305,31 @@
    I guess you COULD just make static a bind volume with the filesystem.
 
    I decided to make the ~web-root/~ directory serve all static files.
+
+   Also needed to set up nginx for the development server, too.
+** TODO separate sandbox/staging from production
+   This could be done using a fully separate server with a different .env file.
+   Or by adding another nodejs instance on the existing server and updating the
+   nginx config to send traffic for sandbox.leap-lab.org to the other server...
+
+   Okay now I think that putting this all on a single machine is clever but kind
+   of defeats the purpose of having a separate staging/sandbox server, which is
+   to test experiments on teh sandbox AND potentially to test server fixes.  so
+   it needs to be a separate thing I think.  so, that being said...how to set up
+   the server?  maybe best to just create another ec2 instance (but that's
+   likely to bump us out of the free tier :-/).  otherwise would need to set up
+   some kind of reverse proxy on the server, which might be okay actually.
+*** one server
+    pros: lower cost, less complex to provision
+
+    cons: need to re-factor the nginx situation to redirect requests to sandbox
+    and experiements to their own ports (maybe just run it on the server?? and
+    not fuck with docker for that...).
+*** two servers
+    pros: can just duplicate existing configuration and change config
+
+    cons: slightly more complex to provision, a bit pricier (about $8/month).
+    annoying to have to copy things to separate servers...
 ** TODO checklist for front-end tweaks required to support backend
    This is mostly handled by the Session class which extends Lab.js transmit
    plugin.
