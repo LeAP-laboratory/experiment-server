@@ -19,6 +19,8 @@ services:
       - MONGO_PASSWORD=$MONGO_PASSWORD
       - SERVER_PORT=8080
       - NODE_ENV=production
+    volumes:
+      - ./logs:/home/node/app/logs
     networks:
       - app-network
     command: node server
