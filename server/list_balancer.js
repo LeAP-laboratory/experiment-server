@@ -9,11 +9,10 @@ const DB = require('./db.js');
 // }
 async function db_counts(query={}) {
   const db = await DB;
-  const col = db.collection('assignments');
   
   // query database for counts for each condition
   const counts = await db
-        .collection('assignments')
+        .collection('sessions')
         .aggregate(
           [
             {

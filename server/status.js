@@ -7,7 +7,7 @@ const api = express.Router();
 api.post('/', async (req, res, next) => {
   try {
     const db = await DB;
-    const col = db.collection('assignments');
+    const col = db.collection('sessions');
     const { status, ...session } = req.body;
     logger.info('updating status to %s for session %o', status, session);
     const updated = await col.updateOne(
