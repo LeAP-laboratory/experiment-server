@@ -326,21 +326,25 @@
     and experiements to their own ports (maybe just run it on the server?? and
     not fuck with docker for that...).
 *** two servers
-    pros: can just duplicate existing configuration and change config
+    pros: can just duplicate existing configuration and change config.  keeps
+    setups completely independent so there's no mistaking.
 
     cons: slightly more complex to provision, a bit pricier (about $8/month).
     annoying to have to copy things to separate servers...
-** TODO checklist for front-end tweaks required to support backend
-   This is mostly handled by the Session class which extends Lab.js transmit
-   plugin.
-*** Update status
-    Include dummy components at start and after transmission, which have ~title:
-    "status:(started|submitted)"~.
+** DONE set up "elastic IP" address for experiments.leap-lab.org
+   this allows for re-mapping the domain to a different server without having to
+   change the DNS record...
+* TODO checklist for front-end tweaks required to support backend
+  This is mostly handled by the Session class which extends Lab.js transmit
+  plugin.
+** Update status
+   Include dummy components at start and after transmission, which have ~title:
+   "status:(started|submitted)"~.
 
-    unload is handled by Session.
+   unload is handled by Session.
     
-*** Transmit plug-in with correct path (~data/~)
-    Also handled by Session.
-*** Request session
-    handled by Session
+** Transmit plug-in with correct path (~data/~)
+   Also handled by Session.
+** Request session
+   handled by Session
 
