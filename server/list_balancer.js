@@ -47,8 +47,6 @@ async function list_balancer(query={}) {
     return x;
   });
 
-  console.dir(targets);
-
   if (targets.length == 0) {
     logger.warn('[lists] No lists found for %o.', query);
     return undefined;
