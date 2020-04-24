@@ -10,4 +10,4 @@ services:
       - ./web-root:/var/www/html
     depends_on:
       - webserver
-    command: certonly --webroot --webroot-path=/var/www/html --email leap-lab@psych.rutgers.edu --agree-tos --no-eff-email --force-renewal -d experiments.leap-lab.org
+    command: certonly --webroot --webroot-path=/var/www/html --email leap-lab@psych.rutgers.edu --agree-tos --no-eff-email --force-renewal -d $HOSTNAME
