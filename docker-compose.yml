@@ -40,6 +40,7 @@ services:
     image: nginx:mainline-alpine
     container_name: webserver
     restart: unless-stopped
+    env_file: .env
     ports:
       - "80:80"
       - "443:443"
@@ -47,12 +48,13 @@ services:
       - nodejs
     volumes:
       - ./web-root:/var/www/html
-      - ./nginx-conf:/etc/nginx/conf.d
+      - ./nginx-conf:/etc/nginx/conf.d/template
       - certbot-etc:/etc/letsencrypt
       - certbot-var:/var/lib/letsencrypt
       - ./dhparam:/etc/ssl/certs
     networks:
       - app-network
+    command: /bin/sh -c "envsubst '$$DOMAIN' < /etc/nginx/conf.d/template/nginx.conf > /etc/nginx/conf.d/nginx.conf && exec nginx -g 'daemon off;'"
       
 networks:
   app-network:

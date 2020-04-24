@@ -11,4 +11,5 @@ services:
     depends_on:
       - webserver
     restart: "no"
-    command: certonly --webroot --webroot-path=/var/www/html --email leap-lab@psych.rutgers.edu --agree-tos --no-eff-email --force-renewal -d $HOSTNAME
+    env_file: .env
+    command: certonly --webroot --webroot-path=/var/www/html --email leap-lab@psych.rutgers.edu --agree-tos --no-eff-email --force-renewal -d $DOMAIN
