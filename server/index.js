@@ -11,6 +11,8 @@ const logger = require('./logger.js');
 
 const app = express();
 
+app.disable('x-powered-by');
+
 const { SERVER_PORT } = process.env;
 
 app.use(express.urlencoded({extended: false, limit: '50mb'}));
