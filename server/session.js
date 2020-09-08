@@ -126,7 +126,7 @@ if (process.env.NODE_ENV !== 'production') {
       };
       logger.info(`Deleting session ${req.params.id} (experiment: ${req.experiment})`);
       const db = await DB;
-      const result = await db.collection('session').deleteOne(query);
+      const result = await db.collection('sessions').deleteOne(query);
       res.status(200).send(result);
     } catch(e) {
       next(e);
@@ -141,7 +141,7 @@ if (process.env.NODE_ENV !== 'production') {
       };
       logger.warn(`Deleting all sessions (experiment: ${req.experiment})`);
       const db = await DB;
-      const result = await db.collection('session').deleteMany(query);
+      const result = await db.collection('sessions').deleteMany(query);
       res.status(200).send(result);
     } catch(e) {
       next(e);
