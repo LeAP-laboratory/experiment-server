@@ -117,14 +117,36 @@ api.post('/:id/status', async (req, res, next) => {
 });
 
 
-// delete a session
-api.delete('/:id', async (req, res, next) => {
-  res.status(501).send();
-});
+if (process.env.NODE_ENV !== 'production') {
+  // delete a session
+  api.delete('/:id', async (req, res, next) => {
+    try {
+      const query = {
+        "session_id": req.params.id
+      };
+      logger.info(`Deleting session ${req.params.id} (experiment: ${req.experiment})`);
+      const db = await DB;
+      const result = await db.collection('sessions').deleteOne(query);
+      res.status(200).send(result);
+    } catch(e) {
+      next(e);
+    }
+  });
 
-// delete all sessions (for this experiment)
-api.delete('/', async (req, res, next) => {
-  res.status(501).send();
-});
+  // delete all sessions (for this experiment)
+  api.delete('/', async (req, res, next) => {
+    try {
+      const query = {
+        "experiment": req.experiment
+      };
+      logger.warn(`Deleting all sessions (experiment: ${req.experiment})`);
+      const db = await DB;
+      const result = await db.collection('sessions').deleteMany(query);
+      res.status(200).send(result);
+    } catch(e) {
+      next(e);
+    }
+  });
+}
 
 module.exports = api;
