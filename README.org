@@ -1,28 +1,38 @@
-#+TITLE:Experiment server: right context recalibration
+#+TITLE:LeAP Laboratory experiment server
+#+STARTUP: indent
 
-This is a node.js app that coordinates MTurk experiment using a
-[lab.js](https://lab.js.org) front-end.
+This is a node.js app that coordinates online data collection.  See the
+[[https://github.com/LeAP-laboratory/experiment-template][experiment template]] for an example of how to integrate a [[https://lab.js.org][lab.js]] front-end.
+
+When paired with the right front-end logic (see [[https://github.com/LeAP-laboratory/experiment-template][experiment template]]), it
+handles:
+
+- managing participant sessions
+- preventing repeat takers
+- assigning participants to lists/conditions in a balanced way
+- storing both incremental and complete experimental data and making it
+  available to download in a JSON format.
 
 * Setting up an experiment
   
-  Static files for each experiment should be placed in a directory with the name
-  of the experiment inside ~web-root~.  Replace spaces, parens, etc. with ~-~,
-  so if your experiment is called "Selective adaptation", you should put the
-  lab.js export in ~web-root/selective-adaptation/~.
+Static files for each experiment should be placed in a directory with the name
+of the experiment inside ~web-root~.  Replace spaces, parens, etc. with ~-~,
+so if your experiment is called "Selective adaptation", you should put the
+lab.js export in ~web-root/selective-adaptation/~.
 
 ** Sandbox
 
-   Before deploying the final version of your experiment, do a "test run" in the
-   mechanical turk sandbox.  When you do this, make a copy of your experiment
-   with SANDBOX prepended to the name: ~web-root/SANDBOX-selective-adaptation/~.
+Before deploying the final version of your experiment, do a "test run" in the
+mechanical turk sandbox.  When you do this, make a copy of your experiment
+with SANDBOX prepended to the name: ~web-root/SANDBOX-selective-adaptation/~.
 
 ** Setting experimental lists
 
-   To set up the lists (conditions, etc.) for your experiment, you need to make
-   a PUT request to https://experiments.leap-lab.org/name-of-experiment/lists,
-   with the JSON-encoded array of lists in the body, like so:
+To set up the lists (conditions, etc.) for your experiment, you need to make
+a PUT request to https://experiments.leap-lab.org/name-of-experiment/lists,
+with the JSON-encoded array of lists in the body, like so:
    
-   #+begin_src restclient
+#+begin_src restclient
      PUT https://experiments.leap-lab.org/name-of-experiment/lists Content-Type:
      application/json
 
@@ -36,73 +46,73 @@ This is a node.js app that coordinates MTurk experiment using a
          "condition": "condition-2",
        }
      ]
-   #+end_src
+#+end_src
 
-   There is, alas, currently no convenient way of doing this.  Curl or
-   emacs-restclient (like above) is your friend.
+There is, alas, currently no convenient way of doing this.  Curl or
+emacs-restclient (like above) is your friend.
 
 *** Conditions
-    The ~condition~ field can contain any valid JSON (number, string, array, or
-    object/dict).  It is available on the Lab.js front-end as
-    ~this.parameters.session.condition~.  You could use it to set basic
-    conditions (via a string/number), block order (via an array of
-    strings/objects), or some more complicated combination of different values
-    in a crossed design (via an object or array of objects).
+The ~condition~ field can contain any valid JSON (number, string, array, or
+object/dict).  It is available on the Lab.js front-end as
+~this.parameters.session.condition~.  You could use it to set basic
+conditions (via a string/number), block order (via an array of
+strings/objects), or some more complicated combination of different values
+in a crossed design (via an object or array of objects).
 
 *** Assignment count   
-    If you want something other than an equal number of subjects assigned to each
-    list, you can add a ~count~ field to each element.  The list balancer will
-    assign subjects to the list with the largest difference between the existing
-    (non-abandoned) sessions in that list and the ~count~.  The default value of
-    ~count~ is zero, which means that the list balancer by default will assign
-    each new subject to the list with the fewest subjects working/completed.
+If you want something other than an equal number of subjects assigned to each
+list, you can add a ~count~ field to each element.  The list balancer will
+assign subjects to the list with the largest difference between the existing
+(non-abandoned) sessions in that list and the ~count~.  The default value of
+~count~ is zero, which means that the list balancer by default will assign
+each new subject to the list with the fewest subjects working/completed.
 
-    This is useful mainly if you need to re-balance lists after analyzing the
-    data and dropping some subjects (by pre-defined exclusion criteria of
-    course).  Or if you have a strange design where you want many more subjects
-    in some conditions than others.
+This is useful mainly if you need to re-balance lists after analyzing the
+data and dropping some subjects (by pre-defined exclusion criteria of
+course).  Or if you have a strange design where you want many more subjects
+in some conditions than others.
 
 * Configuration
 
-  Configuration information is pulled from ~.env~ file.  This is not under
-  version control, but the ~.env.example~ file shows the format.
+Configuration information is pulled from ~.env~ file.  This is not under
+version control, but the ~.env.example~ file shows the format.
 
 * Components
 
-  See [[docker-compose.yml]] and [[docker-compose.devel.yml]] for the components of the
-  app.
+See [[docker-compose.yml]] and [[docker-compose.devel.yml]] for the components of the
+app.
   
 ** nginx webserver
 
-   The ~webserver~ service is an nginx webserver.  This has two functions.
-   First, it serves static files for the experiments from ~web-root~; any
-   request that doesn't correspond to a file or subdirectory with ~index.html~
-   in ~web-root~ gets passed to the node.js app.  
+The ~webserver~ service is an nginx webserver.  This has two functions.
+First, it serves static files for the experiments from ~web-root~; any
+request that doesn't correspond to a file or subdirectory with ~index.html~
+in ~web-root~ gets passed to the node.js app.  
 
-   Second, it handles the https configuration and sets response headers
-   correctly to ensure a secure connection.
+Second, it handles the https configuration and sets response headers
+correctly to ensure a secure connection.
 
 ** node.js app
 
-   This handles participant sessions in the experiments, including assigning
-   subjects to conditions if needed and collecting data.
+This handles participant sessions in the experiments, including assigning
+subjects to conditions if needed and collecting data.
 
-   It also provides an admin interface to retrieve data, manage condition
-   lists, and monitor user sessions.
+It also provides an admin interface to retrieve data, manage condition
+lists, and monitor user sessions.
 
 ** mongo db
    
-   This records information on each participant session, generated data, and
-   experimental lists.
+This records information on each participant session, generated data, and
+experimental lists.
 
 * Interaction
 
 ** experimental lists: ~/:experiment/lists/~
 
-   The lists of conditions and number of assignments to put in each condition is
-   read from the ~lists~ database, which stores documents like this:
+The lists of conditions and number of assignments to put in each condition is
+read from the ~lists~ database, which stores documents like this:
 
-   #+begin_src json
+#+begin_src json
      [
        {
          "list_id": 1,
@@ -117,207 +127,207 @@ This is a node.js app that coordinates MTurk experiment using a
          "count": 5
        }
      ]
-   #+end_src
+#+end_src
 
-   Note that when updating lists, the experiment is added automatically based on
-   the URL, and in fact any values specified directly in the JSON will be
-   ignored.
+Note that when updating lists, the experiment is added automatically based on
+the URL, and in fact any values specified directly in the JSON will be
+ignored.
    
-   ~count~ gives the desired number of assignments for this list.  Anything
-   stored under ~condition~ will be stored on the session returned to the
-   client.
+~count~ gives the desired number of assignments for this list.  Anything
+stored under ~condition~ will be stored on the session returned to the
+client.
 
 *** Update lists and/or target assignment counts with PUT
-    #+begin_src restclient
-      PUT http://localhost:8080/a-nice-experiment/lists
-      Content-Type: application/json
+#+begin_src restclient
+  PUT http://localhost:8080/a-nice-experiment/lists
+  Content-Type: application/json
 
-      [
-        {
-          "list_id": 1,
-          "condition": "nothign",
-          "count": 11
-        },
-        {
-          "list_id": 1,
-          "condition": "nothing",
-          "count": 11
-        },
-        {
-          "list_id": 2,
-          "condition": "something",
-          "count": 10
-        }
-      ]
-    #+end_src
+  [
+  {
+  "list_id": 1,
+  "condition": "nothign",
+  "count": 11
+  },
+  {
+  "list_id": 1,
+  "condition": "nothing",
+  "count": 11
+  },
+  {
+  "list_id": 2,
+  "condition": "something",
+  "count": 10
+  }
+  ]
+#+end_src
 
-    #+RESULTS:
-    #+BEGIN_SRC js
-    [
+#+RESULTS:
+#+BEGIN_SRC js
+  [
       {
-        "n": 1,
-        "nModified": 0,
-        "upserted": [
-          {
-            "index": 0,
-            "_id": "5e9139a2430bf863c0f2cc5b"
-          }
-        ],
-        "ok": 1
+          "n": 1,
+          "nModified": 0,
+          "upserted": [
+              {
+                  "index": 0,
+                  "_id": "5e9139a2430bf863c0f2cc5b"
+              }
+          ],
+          "ok": 1
       },
       {
-        "n": 1,
-        "nModified": 0,
-        "ok": 1
+          "n": 1,
+          "nModified": 0,
+          "ok": 1
       },
       {
-        "n": 1,
-        "nModified": 0,
-        "ok": 1
+          "n": 1,
+          "nModified": 0,
+          "ok": 1
       }
-    ]
-    // PUT http://localhost:8080/a-nice-experiment/lists
-    // HTTP/1.1 200 OK
-    // Server: nginx/1.17.8
-    // Date: Sat, 11 Apr 2020 03:29:38 GMT
-    // Content-Type: application/json; charset=utf-8
-    // Content-Length: 146
-    // Connection: keep-alive
-    // X-Powered-By: Express
-    // ETag: W/"92-7tRz3248ZOxNZpD0GLm+PwZmdJE"
-    // Request duration: 0.018596s
-    #+END_SRC
+  ]
+  // PUT http://localhost:8080/a-nice-experiment/lists
+  // HTTP/1.1 200 OK
+  // Server: nginx/1.17.8
+  // Date: Sat, 11 Apr 2020 03:29:38 GMT
+  // Content-Type: application/json; charset=utf-8
+  // Content-Length: 146
+  // Connection: keep-alive
+  // X-Powered-By: Express
+  // ETag: W/"92-7tRz3248ZOxNZpD0GLm+PwZmdJE"
+  // Request duration: 0.018596s
+#+END_SRC
 
 *** GET lists for experiment
-    #+begin_src restclient
-      GET http://localhost:8080/a-nice-experiment/lists
-    #+end_src
+#+begin_src restclient
+  GET http://localhost:8080/a-nice-experiment/lists
+#+end_src
 
-    #+RESULTS:
-    #+BEGIN_SRC js
-    [
+#+RESULTS:
+#+BEGIN_SRC js
+  [
       {
-        "_id": "5e913985430bf863c0f2cc47",
-        "condition": "nothing",
-        "experiment": "a-nice-experiment",
-        "list_id": 1,
-        "count": 11
+          "_id": "5e913985430bf863c0f2cc47",
+          "condition": "nothing",
+          "experiment": "a-nice-experiment",
+          "list_id": 1,
+          "count": 11
       },
       {
-        "_id": "5e913985430bf863c0f2cc48",
-        "condition": "something",
-        "experiment": "a-nice-experiment",
-        "list_id": 2,
-        "count": 10
+          "_id": "5e913985430bf863c0f2cc48",
+          "condition": "something",
+          "experiment": "a-nice-experiment",
+          "list_id": 2,
+          "count": 10
       },
       {
-        "_id": "5e9139a2430bf863c0f2cc5b",
-        "condition": "nothign",
-        "experiment": "a-nice-experiment",
-        "list_id": 1,
-        "count": 11
+          "_id": "5e9139a2430bf863c0f2cc5b",
+          "condition": "nothign",
+          "experiment": "a-nice-experiment",
+          "list_id": 1,
+          "count": 11
       }
-    ]
-    // GET http://localhost:8080/a-nice-experiment/lists
-    // HTTP/1.1 200 OK
-    // Server: nginx/1.17.8
-    // Date: Sat, 11 Apr 2020 03:29:44 GMT
-    // Content-Type: application/json; charset=utf-8
-    // Content-Length: 315
-    // Connection: keep-alive
-    // X-Powered-By: Express
-    // ETag: W/"13b-WqYJmVZZkykQ5bILQze/k58N3YQ"
-    // Request duration: 0.014982s
-    #+END_SRC
+  ]
+  // GET http://localhost:8080/a-nice-experiment/lists
+  // HTTP/1.1 200 OK
+  // Server: nginx/1.17.8
+  // Date: Sat, 11 Apr 2020 03:29:44 GMT
+  // Content-Type: application/json; charset=utf-8
+  // Content-Length: 315
+  // Connection: keep-alive
+  // X-Powered-By: Express
+  // ETag: W/"13b-WqYJmVZZkykQ5bILQze/k58N3YQ"
+  // Request duration: 0.014982s
+#+END_SRC
 
 *** GET lists with additional filter
-    #+begin_src restclient
-      GET http://localhost:8080/a-nice-experiment/lists?condition=nothign
-    #+end_src
+#+begin_src restclient
+  GET http://localhost:8080/a-nice-experiment/lists?condition=nothign
+#+end_src
     
-    #+RESULTS:
-    #+BEGIN_SRC js
-    [
+#+RESULTS:
+#+BEGIN_SRC js
+  [
       {
-        "_id": "5e9139a2430bf863c0f2cc5b",
-        "condition": "nothign",
-        "experiment": "a-nice-experiment",
-        "list_id": 1,
-        "count": 11
+          "_id": "5e9139a2430bf863c0f2cc5b",
+          "condition": "nothign",
+          "experiment": "a-nice-experiment",
+          "list_id": 1,
+          "count": 11
       }
-    ]
-    // GET http://localhost:8080/a-nice-experiment/lists?condition=nothign
-    // HTTP/1.1 200 OK
-    // Server: nginx/1.17.8
-    // Date: Sat, 11 Apr 2020 03:29:48 GMT
-    // Content-Type: application/json; charset=utf-8
-    // Content-Length: 105
-    // Connection: keep-alive
-    // X-Powered-By: Express
-    // ETag: W/"69-K8U2Z+Zoc8en7GNbWYCcaX24ND0"
-    // Request duration: 0.013597s
-    #+END_SRC
+  ]
+  // GET http://localhost:8080/a-nice-experiment/lists?condition=nothign
+  // HTTP/1.1 200 OK
+  // Server: nginx/1.17.8
+  // Date: Sat, 11 Apr 2020 03:29:48 GMT
+  // Content-Type: application/json; charset=utf-8
+  // Content-Length: 105
+  // Connection: keep-alive
+  // X-Powered-By: Express
+  // ETag: W/"69-K8U2Z+Zoc8en7GNbWYCcaX24ND0"
+  // Request duration: 0.013597s
+#+END_SRC
 
 *** DELETE lists
-    Only exposed in development mode (when ~NODE_ENV != "production"~).
+Only exposed in development mode (when ~NODE_ENV != "production"~).
 
-    #+begin_src restclient
-      DELETE http://localhost:8080/a-nice-experiment/lists?condition=nothign
-    #+end_src
+#+begin_src restclient
+  DELETE http://localhost:8080/a-nice-experiment/lists?condition=nothign
+#+end_src
 
-    #+RESULTS:
-    #+BEGIN_SRC js
-    {
+#+RESULTS:
+#+BEGIN_SRC js
+  {
       "result": {
-        "n": 1,
-        "ok": 1
+          "n": 1,
+          "ok": 1
       },
       "connection": {
-        "id": 2,
-        "host": "db",
-        "port": 27017
+          "id": 2,
+          "host": "db",
+          "port": 27017
       },
       "deletedCount": 1,
       "n": 1,
       "ok": 1
-    }
-    // DELETE http://localhost:8080/a-nice-experiment/lists?condition=nothign
-    // HTTP/1.1 200 OK
-    // Server: nginx/1.17.8
-    // Date: Sat, 11 Apr 2020 03:29:51 GMT
-    // Content-Type: application/json; charset=utf-8
-    // Content-Length: 102
-    // Connection: keep-alive
-    // X-Powered-By: Express
-    // ETag: W/"66-J7xhneNWbQSr5nfbW0l7GMeGoh4"
-    // Request duration: 0.012958s
-    #+END_SRC
+  }
+  // DELETE http://localhost:8080/a-nice-experiment/lists?condition=nothign
+  // HTTP/1.1 200 OK
+  // Server: nginx/1.17.8
+  // Date: Sat, 11 Apr 2020 03:29:51 GMT
+  // Content-Type: application/json; charset=utf-8
+  // Content-Length: 102
+  // Connection: keep-alive
+  // X-Powered-By: Express
+  // ETag: W/"66-J7xhneNWbQSr5nfbW0l7GMeGoh4"
+  // Request duration: 0.012958s
+#+END_SRC
 
 ** sessions: ~/:experiment/session/~
 
 *** Open new session
     
-    We use PUSH to request a new session.  If a matching session is not found in
-    the database, a new session is created.  The criterion for matching is
-    having the same workerId and experiment.  
+We use PUSH to request a new session.  If a matching session is not found in
+the database, a new session is created.  The criterion for matching is
+having the same workerId and experiment.  
 
-    The body of the PUSH request has the metadata about the session to store
-    (workerId is mandatory, others are optional).
+The body of the PUSH request has the metadata about the session to store
+(workerId is mandatory, others are optional).
 
-    #+begin_src restclient
-      POST http://localhost:8080/a-nice-experiment/session
-      Content-Type: application/json
+#+begin_src restclient
+  POST http://localhost:8080/a-nice-experiment/session
+  Content-Type: application/json
 
-      {
-        "assignmendId": 1233445,
-        "workerId": "dave",
-        "hello": "world"
-      }
-    #+end_src
+  {
+  "assignmendId": 1233445,
+  "workerId": "dave",
+  "hello": "world"
+  }
+#+end_src
 
-    #+RESULTS:
-    #+BEGIN_SRC js
-    {
+#+RESULTS:
+#+BEGIN_SRC js
+  {
       "assignmendId": 1233445,
       "workerId": "dave",
       "hello": "world",
@@ -326,119 +336,119 @@ This is a node.js app that coordinates MTurk experiment using a
       "condition": "nothing",
       "status": "assigned",
       "_id": "5e913b0760a409003c4d364d"
-    }
-    // POST http://localhost:8080/a-nice-experiment/session
-    // HTTP/1.1 200 OK
-    // Server: nginx/1.17.8
-    // Date: Sat, 11 Apr 2020 03:35:35 GMT
-    // Content-Type: application/json; charset=utf-8
-    // Content-Length: 209
-    // Connection: keep-alive
-    // X-Powered-By: Express
-    // ETag: W/"d1-/JAeWr1EC6217fT2Z8RscWZc7Gg"
-    // Request duration: 0.060078s
-    #+END_SRC
+  }
+  // POST http://localhost:8080/a-nice-experiment/session
+  // HTTP/1.1 200 OK
+  // Server: nginx/1.17.8
+  // Date: Sat, 11 Apr 2020 03:35:35 GMT
+  // Content-Type: application/json; charset=utf-8
+  // Content-Length: 209
+  // Connection: keep-alive
+  // X-Powered-By: Express
+  // ETag: W/"d1-/JAeWr1EC6217fT2Z8RscWZc7Gg"
+  // Request duration: 0.060078s
+#+END_SRC
 
-    The ~session_id~ is needed for future requests (to get information on a
-    specific session and to update the status of a session)
+The ~session_id~ is needed for future requests (to get information on a
+specific session and to update the status of a session)
     
-    During preview, no ~workerId~ is assigned, but ~assignmentId~ is set to
-    ~ASSIGNMENT_ID_NOT_AVAILABLE~.  In this case, no record is created and
-    ~condition~ is set to ~preview~:
+During preview, no ~workerId~ is assigned, but ~assignmentId~ is set to
+~ASSIGNMENT_ID_NOT_AVAILABLE~.  In this case, no record is created and
+~condition~ is set to ~preview~:
 
-    #+begin_src restclient
-      POST http://localhost:8080/a-nice-experiment/session
-      Content-Type: application/json
+#+begin_src restclient
+  POST http://localhost:8080/a-nice-experiment/session
+  Content-Type: application/json
 
-      {
-        "assignmentId": "ASSIGNMENT_ID_NOT_AVAILABLE"
-      }
-    #+end_src
+  {
+  "assignmentId": "ASSIGNMENT_ID_NOT_AVAILABLE"
+  }
+#+end_src
 
-    #+RESULTS:
-    #+BEGIN_SRC js
-    {
+#+RESULTS:
+#+BEGIN_SRC js
+  {
       "assignmentId": "ASSIGNMENT_ID_NOT_AVAILABLE",
       "condition": "preview"
-    }
-    // POST http://localhost:8080/a-nice-experiment/session
-    // HTTP/1.1 200 OK
-    // Server: nginx/1.17.8
-    // Date: Sat, 11 Apr 2020 03:38:05 GMT
-    // Content-Type: application/json; charset=utf-8
-    // Content-Length: 68
-    // Connection: keep-alive
-    // X-Powered-By: Express
-    // ETag: W/"44-dGvXam5b8niOp+AfWplrKDhJZmI"
-    // Request duration: 0.018471s
-    #+END_SRC
+  }
+  // POST http://localhost:8080/a-nice-experiment/session
+  // HTTP/1.1 200 OK
+  // Server: nginx/1.17.8
+  // Date: Sat, 11 Apr 2020 03:38:05 GMT
+  // Content-Type: application/json; charset=utf-8
+  // Content-Length: 68
+  // Connection: keep-alive
+  // X-Powered-By: Express
+  // ETag: W/"44-dGvXam5b8niOp+AfWplrKDhJZmI"
+  // Request duration: 0.018471s
+#+END_SRC
 
 *** POST updates to session status
-    This is used by the client to update the server on progress of the
-    experiment, or in case the session is abandoned by closing the window.  The
-    body of the request is set as the new status (parsed as plain text).
+This is used by the client to update the server on progress of the
+experiment, or in case the session is abandoned by closing the window.  The
+body of the request is set as the new status (parsed as plain text).
 
-    #+begin_src restclient
-      POST http://localhost:8080/a-nice-experiment/session/680c34d8-a2b4-4f53-be82-fb395a9ef884/status
-      Content-Type: text/plain
+#+begin_src restclient
+  POST http://localhost:8080/a-nice-experiment/session/680c34d8-a2b4-4f53-be82-fb395a9ef884/status
+  Content-Type: text/plain
 
-      okay
-    #+end_src
+  okay
+#+end_src
 
-    #+RESULTS:
-    #+BEGIN_SRC js
-    // POST http://localhost:8080/a-nice-experiment/session/680c34d8-a2b4-4f53-be82-fb395a9ef884/status
-    // HTTP/1.1 200 OK
-    // Server: nginx/1.17.8
-    // Date: Sat, 11 Apr 2020 03:43:20 GMT
-    // Transfer-Encoding: chunked
-    // Connection: keep-alive
-    // X-Powered-By: Express
-    // Request duration: 0.014902s
-    #+END_SRC
+#+RESULTS:
+#+BEGIN_SRC js
+  // POST http://localhost:8080/a-nice-experiment/session/680c34d8-a2b4-4f53-be82-fb395a9ef884/status
+  // HTTP/1.1 200 OK
+  // Server: nginx/1.17.8
+  // Date: Sat, 11 Apr 2020 03:43:20 GMT
+  // Transfer-Encoding: chunked
+  // Connection: keep-alive
+  // X-Powered-By: Express
+  // Request duration: 0.014902s
+#+END_SRC
     
 *** GET a listing of all sessions for an experiment
-    #+begin_src restclient
-      GET http://localhost:8080/a-nice-experiment/session/
-    #+end_src
+#+begin_src restclient
+  GET http://localhost:8080/a-nice-experiment/session/
+#+end_src
 
-    #+RESULTS:
-    #+BEGIN_SRC js
-    [
+#+RESULTS:
+#+BEGIN_SRC js
+  [
       {
-        "_id": "5e913b0760a409003c4d364d",
-        "assignmendId": 1233445,
-        "workerId": "dave",
-        "hello": "world",
-        "experiment": "a-nice-experiment",
-        "session_id": "680c34d8-a2b4-4f53-be82-fb395a9ef884",
-        "condition": "nothing",
-        "status": "okay"
+          "_id": "5e913b0760a409003c4d364d",
+          "assignmendId": 1233445,
+          "workerId": "dave",
+          "hello": "world",
+          "experiment": "a-nice-experiment",
+          "session_id": "680c34d8-a2b4-4f53-be82-fb395a9ef884",
+          "condition": "nothing",
+          "status": "okay"
       }
-    ]
-    // GET http://localhost:8080/a-nice-experiment/session/
-    // HTTP/1.1 200 OK
-    // Server: nginx/1.17.8
-    // Date: Sat, 11 Apr 2020 03:44:03 GMT
-    // Content-Type: application/json; charset=utf-8
-    // Content-Length: 207
-    // Connection: keep-alive
-    // X-Powered-By: Express
-    // ETag: W/"cf-4177wYXZFBK+hFQXDTT9ThCaRGs"
-    // Request duration: 0.012216s
-    #+END_SRC
+  ]
+  // GET http://localhost:8080/a-nice-experiment/session/
+  // HTTP/1.1 200 OK
+  // Server: nginx/1.17.8
+  // Date: Sat, 11 Apr 2020 03:44:03 GMT
+  // Content-Type: application/json; charset=utf-8
+  // Content-Length: 207
+  // Connection: keep-alive
+  // X-Powered-By: Express
+  // ETag: W/"cf-4177wYXZFBK+hFQXDTT9ThCaRGs"
+  // Request duration: 0.012216s
+#+END_SRC
 
 *** GET information on an existing session
 
-    (This uses the ID returned in the POST call above)
+(This uses the ID returned in the POST call above)
 
-    #+begin_src restclient
-      GET http://localhost:8080/a-nice-experiment/session/680c34d8-a2b4-4f53-be82-fb395a9ef884/
-    #+end_src
+#+begin_src restclient
+  GET http://localhost:8080/a-nice-experiment/session/680c34d8-a2b4-4f53-be82-fb395a9ef884/
+#+end_src
 
-    #+RESULTS:
-    #+BEGIN_SRC js
-    {
+#+RESULTS:
+#+BEGIN_SRC js
+  {
       "_id": "5e913b0760a409003c4d364d",
       "assignmendId": 1233445,
       "workerId": "dave",
@@ -447,28 +457,28 @@ This is a node.js app that coordinates MTurk experiment using a
       "session_id": "680c34d8-a2b4-4f53-be82-fb395a9ef884",
       "condition": "nothing",
       "status": "okay"
-    }
-    // GET http://localhost:8080/a-nice-experiment/session/680c34d8-a2b4-4f53-be82-fb395a9ef884/
-    // HTTP/1.1 200 OK
-    // Server: nginx/1.17.8
-    // Date: Sat, 11 Apr 2020 03:44:13 GMT
-    // Content-Type: application/json; charset=utf-8
-    // Content-Length: 205
-    // Connection: keep-alive
-    // X-Powered-By: Express
-    // ETag: W/"cd-0SVHlJg+WXq4PWpCHjo1xsMoB2s"
-    // Request duration: 0.014265s
-    #+END_SRC
+  }
+  // GET http://localhost:8080/a-nice-experiment/session/680c34d8-a2b4-4f53-be82-fb395a9ef884/
+  // HTTP/1.1 200 OK
+  // Server: nginx/1.17.8
+  // Date: Sat, 11 Apr 2020 03:44:13 GMT
+  // Content-Type: application/json; charset=utf-8
+  // Content-Length: 205
+  // Connection: keep-alive
+  // X-Powered-By: Express
+  // ETag: W/"cd-0SVHlJg+WXq4PWpCHjo1xsMoB2s"
+  // Request duration: 0.014265s
+#+END_SRC
 
 ** data: ~/:experiment/data~
 
 *** POST recorded data
 
-    The client should send recorded data to the serer using a POST request to
-    the experiments ~data~ endpoint:
+The client should send recorded data to the serer using a POST request to
+the experiments ~data~ endpoint:
 
 #+begin_src restclient
-POST 
+  POST 
 #+end_src
 
 

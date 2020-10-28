@@ -8,6 +8,7 @@
     "start": "node server"
   },
   "author": "Dave Kleinschmidt <dave.f.kleinschmidt@gmail.com>",
+  "repository": "https://github.com/LeAP-laboratory/experiment-server"
   "license": "MIT",
   "dependencies": {
     "dotenv": "^8.2.0",
