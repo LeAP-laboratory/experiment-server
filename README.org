@@ -528,7 +528,31 @@ $ docker-compose -f docker-compose.yml -f docker-compose.certbot.yml up certbot
 On its own, this will (re-)create the necessary services (webserver) and run
 certbot.  This needs to be done every time the certificate needs to be renewed.
 
-Once the certificates are in place, the diffie helman parameter needs to be
+**** Configuration
+
+The ~DOMAIN~ environment variable is used to set the domain name for
+letsencrypt, so make sure the setting in ~.env~ matches the actual domain name
+you need a certificate for.
+
+Second, make sure the email address you want certificate expiration reminders to
+go to is listed in ~docker-compose.certbot.yml~ file.
+
+**** Initial setup
+
+Additional steps are needed for initial certificate acquisition.
+
+First, because there's no certificates in place, you need to (temporarily)
+adjust the nginx configuration (in ~nginx-conf/nginx.conf~).  Right now this is
+handled awkwardly: you have to manually uncomment the bit in the first ~server~
+block (to allow access to files over HTTP), and comment out the entire second
+~server~ block (which will block nginx from starting because of the missing
+certificates).  Then run certbot as before:
+
+#+begin_src 
+$ docker-compose -f docker-compose.yml -f docker-compose.certbot.yml up certbot
+#+end_src
+
+Second, once the certificates are in place, the diffie helman parameter needs to be
 generated, like
 
 #+begin_src 
@@ -536,3 +560,25 @@ $ mkdir dhparam
 $ sudo openssl dhparam -out "$PWD/dhparam/dhparam-2048.pem" 2048
 #+end_src
 
+**** Certificate renewal
+
+Every 90 days you must renew the certificates; LetsEncrypt will email you a
+reminder at the email address in the dockerfile.  Renewal is simple matter of
+running certbot again and re-starting the webserver to load the new
+certificates (the ~--no-deps~ flag keeps docker-compose from recreating all the
+other containers, which isn't necessary when the webserver is already running)
+
+#+begin_src 
+$ docker-compose -f docker-compose.yml -f docker-compose.certbot.yml up --no-deps certbot
+#+end_src
+
+Then the new certificates need to be loaded into nginx.  You can either re-start
+the whole container using ~up --force-recreate --no-deps webserver~ or (slighly
+more gracefully) send a SIGHUP signal to the nginx process with
+
+#+begin_src
+$ docker-compose exec webserver nginx -s reload
+#+end_src
+
+Which will validate and load the new certificates and restart any worker
+processes as necessary.
