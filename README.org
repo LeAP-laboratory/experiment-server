@@ -23,8 +23,10 @@ lab.js export in ~web-root/selective-adaptation/~.
 ** Sandbox
 
 Before deploying the final version of your experiment, do a "test run" in the
-mechanical turk sandbox.  When you do this, make a copy of your experiment
-with SANDBOX prepended to the name: ~web-root/SANDBOX-selective-adaptation/~.
+mechanical turk sandbox.  Because the server maintains a record of which users
+have completed the experiment in order to balance the assignment of users to
+experimental lists, it's recommended to use a second instance of the server with
+its own domain for sandbox testing.
 
 ** Setting experimental lists
 
@@ -104,6 +106,132 @@ lists, and monitor user sessions.
    
 This records information on each participant session, generated data, and
 experimental lists.
+
+* Deploying
+
+The components of the experiment server are coordinated by ~docker-compose~.
+The general steps are
+
+1. Install ~docker~ and ~docker-compose~, and start the docker daemon (e.g. with
+   ~$ sudo systemctl start docker~).
+2. Clone this repository.
+3. Copy ~.env.example~ to ~.env~ and edit as needed (probably at least
+   ~MONGO_USERNAME~, ~MONGO_PASSWORD~, ~MONGO_DB~, ~DOMAIN~, and ~NODE_ENV~).
+4. Create and start the necessary containers with ~docker-compose up -d~.
+
+Depending on where you're deploying (local vs. remote machine) and to what end
+(development or production), the specific steps are detailed below.  Most of the
+work is handled by swapping in the appropriate docker-compose file.
+
+** Local Development
+
+A separate docker-compose config is provided for local development:
+
+#+begin_src 
+$ docker-compose -f docker-compose.devel.yml up
+#+end_src
+
+This will create a container for the database if needed, and listen on
+port 8080.  The local app directory is mounted in the countainer (to
+~/home/node/app~) and ~nodemon~ listens for changes in the source.  This differs
+from the production docker compose config which copies the app source and static
+assets into the container when it's built.
+
+Make sure that no ~node_modules~ directory is present since it will mask the
+volume that's created by docker-compose.
+
+** Remote development
+Live development of the /experiment server itself/ can be done on a remote
+machine by combining the production and development docker compose configs:
+
+#+begin_src 
+$ docker-compose -f docker-compose.yml -f docker-compose.devel.yml up -d
+#+end_src
+
+This combines the production ~nginx~ web server to handle HTTP/S requests with
+the live-reloading javascript server.
+
+
+** Production/staging
+
+The default ~docker-compose.yml~ configuring is set up for remote production and
+staging (sandbox) use, so for normal use all that's necessary is
+
+#+begin_src
+$ docker-compose up -d
+#+end_src
+
+For HTTPS support, read on.
+
+*** SSL/certbot/LetsEncrypt
+
+This is necessary to support HTTPS (which is required for MTurk external HITs).
+
+The certificates necessary for SSL are written into the ~certbot-etc~ and
+~certbot-var~ volumes by certbot.  This is accomplished using a separate docker compose
+file, which goes on top of the main one like so:
+
+#+begin_src 
+$ docker-compose -f docker-compose.yml -f docker-compose.certbot.yml up certbot
+#+end_src
+
+On its own, this will (re-)create the necessary services (webserver) and run
+certbot.  This needs to be done every time the certificate needs to be renewed.
+
+**** Configuration
+
+The ~DOMAIN~ environment variable is used to set the domain name for
+letsencrypt, so make sure the setting in ~.env~ matches the actual domain name
+you need a certificate for.
+
+Second, make sure the email address you want certificate expiration reminders to
+go to is listed in ~docker-compose.certbot.yml~ file.
+
+**** Initial certificate
+
+Additional steps are needed for initial certificate acquisition.
+
+First, because there's no certificates in place, you need to (temporarily)
+adjust the nginx configuration (in ~nginx-conf/nginx.conf~).  Right now this is
+handled awkwardly: you have to manually uncomment the bit in the first ~server~
+block (to allow access to files over HTTP), and comment out the entire second
+~server~ block (which will block nginx from starting because of the missing
+certificates).  Then run certbot as before:
+
+#+begin_src 
+$ docker-compose -f docker-compose.yml -f docker-compose.certbot.yml up certbot
+#+end_src
+
+Second, once the certificates are in place, the diffie helman parameter needs to be
+generated, like
+
+#+begin_src 
+$ mkdir dhparam
+$ sudo openssl dhparam -out "$PWD/dhparam/dhparam-2048.pem" 2048
+#+end_src
+
+**** Certificate renewal
+
+Every 90 days you must renew the certificates; LetsEncrypt will email you a
+reminder at the email address in the dockerfile.  Renewal is simple matter of
+running certbot again and re-starting the webserver to load the new
+certificates (the ~--no-deps~ flag keeps docker-compose from recreating all the
+other containers, which isn't necessary when the webserver is already running)
+
+#+begin_src 
+$ docker-compose -f docker-compose.yml -f docker-compose.certbot.yml up --no-deps certbot
+#+end_src
+
+Then the new certificates need to be loaded into nginx.  You can either re-start
+the whole container using ~up --force-recreate --no-deps webserver~ or (slighly
+more gracefully) send a SIGHUP signal to the nginx process with
+
+#+begin_src
+$ docker-compose exec webserver nginx -s reload
+#+end_src
+
+Which will validate and load the new certificates and restart any worker
+processes as necessary.
 
 * Interaction
 
@@ -482,103 +610,3 @@ the experiments ~data~ endpoint:
 #+end_src
 
 
-* Deploying
-
-Use ~docker-compose~.  Make sure the docker daemon is running on your system
-first (~$ systemctl start docker~).
-
-** Development
-
-A separate docker-compose config is provided for local development:
-
-#+begin_src 
-$ docker-compose -f docker-compose.devel.yml up
-#+end_src
-
-This will create a container for the database if needed, and listen on
-port 8080.  The local app directory is mounted in the countainer (to
-~/home/node/app~) and ~nodemon~ listens for changes in the source.  This differs
-from the production docker compose config which copies the app source and static
-assets into the container when it's built.
-
-Make sure that no ~node_modules~ directory is present since it will mask the
-volume that's created by docker-compose.
-
-** Production/staging
-
-*** Development on server
-
-Live development can be done on the server by combining the production and
-development docker compose configs:
-
-#+begin_src 
-$ docker-compose -f docker-compose.yml -f docker-compose.devel.yml up
-#+end_src
-
-*** SSL/certbot/LetsEncrypt
-
-The certificates necessary for SSL are written into the ~certbot-etc~ and
-~certbot-var~ volumes by certbot.  This is accomplished using a separate docker compose
-file, which goes on top of the main one like so:
-
-#+begin_src 
-$ docker-compose -f docker-compose.yml -f docker-compose.certbot.yml up certbot
-#+end_src
-
-On its own, this will (re-)create the necessary services (webserver) and run
-certbot.  This needs to be done every time the certificate needs to be renewed.
-
-**** Configuration
-
-The ~DOMAIN~ environment variable is used to set the domain name for
-letsencrypt, so make sure the setting in ~.env~ matches the actual domain name
-you need a certificate for.
-
-Second, make sure the email address you want certificate expiration reminders to
-go to is listed in ~docker-compose.certbot.yml~ file.
-
-**** Initial setup
-
-Additional steps are needed for initial certificate acquisition.
-
-First, because there's no certificates in place, you need to (temporarily)
-adjust the nginx configuration (in ~nginx-conf/nginx.conf~).  Right now this is
-handled awkwardly: you have to manually uncomment the bit in the first ~server~
-block (to allow access to files over HTTP), and comment out the entire second
-~server~ block (which will block nginx from starting because of the missing
-certificates).  Then run certbot as before:
-
-#+begin_src 
-$ docker-compose -f docker-compose.yml -f docker-compose.certbot.yml up certbot
-#+end_src
-
-Second, once the certificates are in place, the diffie helman parameter needs to be
-generated, like
-
-#+begin_src 
-$ mkdir dhparam
-$ sudo openssl dhparam -out "$PWD/dhparam/dhparam-2048.pem" 2048
-#+end_src
-
-**** Certificate renewal
-
-Every 90 days you must renew the certificates; LetsEncrypt will email you a
-reminder at the email address in the dockerfile.  Renewal is simple matter of
-running certbot again and re-starting the webserver to load the new
-certificates (the ~--no-deps~ flag keeps docker-compose from recreating all the
-other containers, which isn't necessary when the webserver is already running)
-
-#+begin_src 
-$ docker-compose -f docker-compose.yml -f docker-compose.certbot.yml up --no-deps certbot
-#+end_src
-
-Then the new certificates need to be loaded into nginx.  You can either re-start
-the whole container using ~up --force-recreate --no-deps webserver~ or (slighly
-more gracefully) send a SIGHUP signal to the nginx process with
-
-#+begin_src
-$ docker-compose exec webserver nginx -s reload
-#+end_src
-
-Which will validate and load the new certificates and restart any worker
-processes as necessary.
